@@ -1,0 +1,48 @@
+import telegram
+import requests
+from bs4 import BeautifulSoup
+
+# Replace YOUR_TOKEN with your bot's token
+bot = telegram.Bot(token='YOUR_TOKEN')
+
+def search_movie(query):
+    # Search for movies on IMDB
+    url = f'https://www.imdb.com/find?q={query}&s=tt&ttype=ft&ref_=fn_ft'
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    # Find the first result with Leonardo DiCaprio
+    results = soup.find_all('td', class_='result_text')
+    for result in results:
+        title = result.a.text
+        href = result.a['href']
+        movie_url = f'https://www.imdb.com{href}'
+        movie_response = requests.get(movie_url)
+        movie_soup = BeautifulSoup(movie_response.text, 'html.parser')
+        cast_list = movie_soup.find('table', class_='cast_list')
+        if cast_list and 'Leonardo DiCaprio' in cast_list.text:
+            return title, movie_url
+
+    # If no results with Leonardo DiCaprio were found, return None
+    return None
+
+def handle_command(update, context):
+    text = update.message.text
+    query = text.split(' ', 1)[-1]
+    if not query:
+        bot.send_message(chat_id=update.effective_chat.id, text='Please provide a search query.')
+        return
+    result = search_movie(query)
+    if result:
+        title, url = result
+        bot.send_message(chat_id=update.effective_chat.id, text=f'{title}\n{url}')
+    else:
+        bot.send_message(chat_id=update.effective_chat.id, text='No results found.')
+
+# Replace YOUR_TOKEN with your bot's token
+updater = telegram.ext.Updater(token='YOUR_TOKEN', use_context=True)
+dispatcher = updater.dispatcher
+dispatcher.add_handler(telegram.ext.CommandHandler('search', handle_command))
+
+# Start polling for updates
+updater.start_polling()
